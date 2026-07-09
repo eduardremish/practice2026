@@ -1,1 +1,6 @@
-<Solution />
+<Solution>
+  <Project Path="CommandLib/CommandLib.csproj" Id="82cd47e4-6e35-4ef4-ab7a-92c71f2d6380" />
+  <Project Path="CommandRunner/CommandRunner.csproj" Id="eac78c98-a13e-425f-81a8-19e5ed9dfb1f" />
+  <Project Path="FileSystemCommands/FileSystemCommands.csproj" Id="3717d7b3-c745-43a2-8e98-cf4331b527c1" />
+  <Project Path="task08tests/task08tests.csproj" Id="17dbea8c-5c7f-4610-adf2-e2a32b871a14" />
+</Solution>
