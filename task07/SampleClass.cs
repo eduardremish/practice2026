@@ -1,7 +1,7 @@
 ﻿using System;
 using System.ComponentModel;
 
-namespace task07
+namespace task09
 {
     [DisplayName("Пример класса")]
     [Version(1, 0)]

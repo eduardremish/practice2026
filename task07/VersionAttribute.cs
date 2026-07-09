@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace task07
+namespace task09
 {
     [AttributeUsage(AttributeTargets.Class)]
     public class VersionAttribute : Attribute
