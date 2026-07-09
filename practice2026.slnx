@@ -1,1 +1,4 @@
-<Solution />
+<Solution>
+  <Project Path="task05/task05.csproj" Id="483fe102-a71a-4088-b55d-f903cb8cd469" />
+  <Project Path="task05tests/task05tests.csproj" Id="d06e1333-3ccc-44cf-85e8-b56e8f26d5e8" />
+</Solution>
