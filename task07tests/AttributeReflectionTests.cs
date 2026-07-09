@@ -1,8 +1,8 @@
 ﻿using Xunit;
 using System.Reflection; 
-using task07;          
+using task09;          
 
-namespace task07tests
+namespace task09tests
 {
     public class AttributeReflectionTests
     {
