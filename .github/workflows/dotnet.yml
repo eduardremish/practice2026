@@ -1,0 +1,44 @@
+name: Universal .NET CI
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Restore dependencies
+      run: |
+        if ls *.slnx 1> /dev/null 2>&1; then
+          dotnet restore *.slnx
+        else
+          echo "No .slnx file found, skipping restore"
+        fi
+
+    - name: Build project
+      run: |
+        if ls *.slnx 1> /dev/null 2>&1; then
+          dotnet build *.slnx --no-restore --configuration Release
+        else
+          echo "No .slnx file found, skipping build"
+        fi
+
+    - name: Run Tests
+      run: |
+        if ls *.slnx 1> /dev/null 2>&1; then
+          dotnet test *.slnx --no-build --configuration Release --verbosity normal
+        else
+          echo "No .slnx file found, skipping tests"
+        fi
