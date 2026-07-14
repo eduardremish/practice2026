@@ -1,11 +1,11 @@
-﻿using System; 
+﻿using System;
 using Xunit;
-using task14; 
+using task14;
 
 namespace task14tests
-{ 
-    public class IntegralTests 
-    { 
+{
+    public class IntegralTests
+    {
         [Fact]
         public void Test_ConstantFunction_SingleThread()
         {
@@ -23,7 +23,7 @@ namespace task14tests
         {
 
             double result = DefiniteIntegral.Solve(0, 1, x => x, 100.0, 2);
-            Assert.True(result > 0); 
+            Assert.True(result > 0);
         }
-    } 
+    }
 }
