@@ -52,5 +52,21 @@ namespace task14
             }
             while (Interlocked.CompareExchange(ref target, newValue, initial) != initial);
         }
+
+        public static double SolveSingleThreaded(double a, double b, Func<double, double> function, double step)
+        {
+            double result = 0.0;
+            int steps = Math.Max(1, (int)Math.Round((b - a) / step));
+            double actualStep = (b - a) / steps;
+
+            for (int i = 0; i < steps; i++)
+            {
+                double x1 = a + i * actualStep;
+                double x2 = x1 + actualStep;
+                result += (function(x1) + function(x2)) / 2.0 * actualStep;
+            }
+
+            return result;
+        }
     }
 }
