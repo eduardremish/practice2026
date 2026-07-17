@@ -12,7 +12,7 @@ namespace task17
         private readonly BlockingCollection<ICommand> _taskQueue = new BlockingCollection<ICommand>();
         private readonly Thread _workerThread;
         private Action _currentAction;
-        private bool _shouldStop = false;
+        private volatile bool _shouldStop = false;
 
         public Thread Thread => _workerThread;
 
@@ -31,12 +31,12 @@ namespace task17
             catch (InvalidOperationException)
             {
             }
-
         }
 
         public void HardStop()
         {
             _shouldStop = true;
+            _taskQueue.CompleteAdding();
         }
 
         public void SoftStop()
@@ -44,12 +44,12 @@ namespace task17
             _taskQueue.CompleteAdding();
             UpdateBehavior(() =>
             {
-                if (_taskQueue.IsCompleted)
+                if (_taskQueue.TryTake(out ICommand cmd))
                 {
-                    HardStop();
+                    ExecuteCommand(cmd);
                     return;
                 }
-                DefaultBehavior();
+                HardStop();
             });
         }
 
@@ -57,29 +57,34 @@ namespace task17
         {
             try
             {
-                ICommand cmd = _taskQueue.Take();
-                try
+                // TryTake с таймаутом вместо блокирующего Take
+                if (_taskQueue.TryTake(out ICommand cmd, 100))
                 {
-                    cmd.Execute();
-                }
-                catch (Exception ex)
-                {
-                    ExceptionHandler.Handler(cmd, ex);
+                    ExecuteCommand(cmd);
                 }
             }
             catch (InvalidOperationException)
             {
                 HardStop();
             }
+        }
 
+        private void ExecuteCommand(ICommand cmd)
+        {
+            try
+            {
+                cmd.Execute();
+            }
+            catch (Exception ex)
+            {
+                ExceptionHandler.Handler(cmd, ex);
+            }
         }
 
         public void UpdateBehavior(Action nextBehavior)
         {
             _currentAction = nextBehavior ?? throw new ArgumentNullException(nameof(nextBehavior));
         }
-
-        
 
         public void Join()
         {
@@ -98,7 +103,5 @@ namespace task17
         {
             _workerThread.Start();
         }
-
-        
     }
 }

@@ -75,6 +75,7 @@ namespace ServerThreadTests
             server2.Add(cmd2);
             server1.Start();
             server2.Start();
+            Thread.Sleep(100);
             server1.HardStop();
             server2.HardStop();
             server1.Join();
@@ -82,6 +83,6 @@ namespace ServerThreadTests
 
             Assert.Equal(2, counter);
         }
-    
+
     }
 }
