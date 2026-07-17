@@ -58,7 +58,6 @@ namespace task17
 
             UpdateBehavior(() =>
             {
-                // 1. Сначала планировщик
                 if (_taskScheduler.HasCommand())
                 {
                     ICommand cmd = _taskScheduler.Select();
@@ -68,15 +67,12 @@ namespace task17
                         return;
                     }
                 }
-                
-                // 2. Потом очередь
                 if (_buffer.TryTake(out ICommand queueCmd))
                 {
                     ProcessCommand(queueCmd);
                     return;
                 }
                 
-                // 3. Всё пусто — останавливаемся
                 HardStop();
             });
         }
@@ -88,7 +84,6 @@ namespace task17
                 _currentStrategy();
             }
             
-            // Добиваем очередь
             while (_buffer.TryTake(out ICommand remaining))
             {
                 ProcessCommand(remaining);
@@ -107,13 +102,12 @@ namespace task17
             }
             catch (Exception error)
             {
-                ExceptionHandler.Handle(cmd, error);
+                ExceptionHandler.Handler(cmd, error);
             }
         }
 
         private void DefaultBehavior()
         {
-            // 1. СНАЧАЛА планировщик — чтобы команды чередовались строго
             if (_taskScheduler.HasCommand())
             {
                 ICommand scheduledCmd = _taskScheduler.Select();
@@ -124,14 +118,12 @@ namespace task17
                 }
             }
 
-            // 2. Потом очередь
             if (_buffer.TryTake(out ICommand incomingCmd))
             {
                 ProcessCommand(incomingCmd);
                 return;
             }
 
-            // 3. Блокируемся на очереди
             try
             {
                 ICommand nextCmd = _buffer.Take(_tokenSource.Token);
@@ -139,11 +131,9 @@ namespace task17
             }
             catch (OperationCanceledException)
             {
-                // просто выходим
             }
             catch (InvalidOperationException)
             {
-                // очередь закрыта
             }
         }
     }
