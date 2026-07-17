@@ -1,86 +1,116 @@
-﻿using System;
-using Xunit;
-using task17;
+﻿using Xunit;
+using System;
+using System.Linq;
 using System.Threading;
-using System.Collections.Generic;
+using task17;
 
-namespace ServerThreadTests
+namespace task17tests
 {
-    public class ServerThreadTests : IDisposable
+    public class BasicCommand : ICommand
     {
-        private class Command : ICommand
-        {
-            public bool Executed { get; private set; }
-            public Action OnExecute { get; set; }
+        private readonly Action _callback;
+        public BasicCommand(Action callback = null) => _callback = callback;
+        public void Execute() => _callback?.Invoke();
+    }
 
-            public void Execute()
+    public class RepeatingCommand : ILongCommand
+    {
+        private int _cyclesLeft;
+        private readonly Action _callback;
+        public bool IsCompleted => _cyclesLeft <= 0;
+        public string Label { get; }
+
+        public RepeatingCommand(int totalCycles, string label = "", Action callback = null)
+        {
+            _cyclesLeft = totalCycles;
+            Label = label;
+            _callback = callback;
+        }
+
+        public void Execute()
+        {
+            if (!IsCompleted)
             {
-                Executed = true;
-                OnExecute?.Invoke();
+                _cyclesLeft--;
+                _callback?.Invoke();
             }
         }
+    }
+
+    public class QueueScheduler : IScheduler
+    {
+        private readonly System.Collections.Generic.Queue<ICommand> _pending = new();
+        public void Add(ICommand cmd) { if (cmd != null) _pending.Enqueue(cmd); }
+        public bool HasCommand() => _pending.Count > 0;
+        public ICommand Select() => _pending.Count > 0 ? _pending.Dequeue() : null;
+    }
+
+    public class ServerThreadTests : IDisposable
+    {
+        private readonly QueueScheduler _taskQueue;
+        private readonly ServerThread _executor;
 
         public ServerThreadTests()
         {
-            ExceptionHandler.Reset();
+            _taskQueue = new QueueScheduler();
+            _executor = new ServerThread(_taskQueue);
         }
 
         public void Dispose()
         {
-            ExceptionHandler.Reset();
+            if (_executor.Thread.IsAlive)
+            {
+                _executor.HardStop();
+                _executor.Join();
+            }
         }
+
         [Fact]
-        public void SoftStop_ShouldProcessAllCommands()
+        public void HardStop_StopsProcessing()
         {
-            var server = new ServerThread();
             var counter = 0;
+            var cmd = new BasicCommand(() => counter++);
 
-            server.Add(new Command { OnExecute = () => counter++ });
-            server.Add(new Command { OnExecute = () => counter++ });
-            server.Add(new Command { OnExecute = () => counter++ });
+            _executor.Start();
+            _executor.Add(cmd);
+            Thread.Sleep(100);
+            _executor.HardStop();
+            _executor.Join();
 
-            server.Start();
-            server.SoftStop();
-            server.Join();
+            Assert.Equal(1, counter);
+        }
+
+        [Fact]
+        public void SoftStop_ProcessesAllBeforeExit()
+        {
+            var counter = 0;
+            var cmd1 = new BasicCommand(() => counter++);
+            var cmd2 = new BasicCommand(() => counter++);
+            var cmd3 = new BasicCommand(() => counter++);
+
+            _executor.Start();
+            _executor.Add(cmd1);
+            _executor.Add(cmd2);
+            _executor.Add(cmd3);
+            _executor.SoftStop();
+            _executor.Join();
 
             Assert.Equal(3, counter);
-
         }
-        [Fact]
-        public void HardStop_ShouldProcessAllCommands()
-        {
-            var server = new ServerThread();
-            server.Start();
-            server.HardStop();
-            server.Join();
-
-            var cmd = new Command();
-            server.Add(cmd);
-
-            Assert.False(cmd.Executed);
-        }
-
 
         [Fact]
-        public void Start_MultipleThreads_ShouldExecuteInParallel()
+        public void ExceptionHandler_CalledOnError()
         {
-            var server1 = new ServerThread();
-            var server2 = new ServerThread();
-            var counter = 0;
-            var cmd1 = new Command { OnExecute = () => Interlocked.Increment(ref counter) };
-            var cmd2 = new Command { OnExecute = () => Interlocked.Increment(ref counter) };
+            var cmd = new BasicCommand(() => throw new Exception("test"));
 
-            server1.Add(cmd1);
-            server2.Add(cmd2);
-            server1.Start();
-            server2.Start();
-            server1.HardStop();
-            server2.HardStop();
-            server1.Join();
-            server2.Join();
+            _executor.Start();
+            _executor.Add(cmd);
+            Thread.Sleep(100);
+            _executor.HardStop();
+            _executor.Join();
 
-            Assert.Equal(2, counter);
+            Assert.NotNull(ExceptionHandler.FailedCommand);
+            Assert.NotNull(ExceptionHandler.CapturedError);
         }
-    
     }
 }

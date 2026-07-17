@@ -1,50 +1,65 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Collections.Concurrent;
 using System.Threading;
-using System.Runtime.ExceptionServices;
+using task17;
 
 namespace task17
 {
     public class ServerThread
     {
-        private readonly BlockingCollection<ICommand> _taskQueue = new BlockingCollection<ICommand>();
-        private readonly Thread _workerThread;
-        private Action _currentAction;
-        private bool _shouldStop = false;
+        private readonly BlockingCollection<ICommand> _buffer = new();
+        private readonly IScheduler _taskScheduler;
+        private readonly Thread _worker;
+        private readonly CancellationTokenSource _tokenSource = new();
+        private Action _currentStrategy;
+        private volatile bool _forceStop = false;
 
-        public Thread Thread => _workerThread;
+        public Thread Thread => _worker;
 
-        public ServerThread()
+        public ServerThread(IScheduler scheduler)
         {
-            _currentAction = DefaultBehavior;
-            _workerThread = new Thread(Run);
+            _taskScheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
+            _currentStrategy = DefaultBehavior;
+            _worker = new Thread(Run);
+        }
+
+        public void Start() => _worker.Start();
+
+        public void Join() => _worker.Join();
+
+        public void HardStop()
+        {
+            _forceStop = true;
+            _tokenSource.Cancel();
+        }
+
+        public void UpdateBehavior(Action strategy)
+        {
+            _currentStrategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
         }
 
         public void Add(ICommand cmd)
         {
             try
             {
-                _taskQueue.Add(cmd);
+                _buffer.Add(cmd, _tokenSource.Token);
+            }
+            catch (OperationCanceledException)
+            {
             }
             catch (InvalidOperationException)
             {
             }
-
-        }
-
-        public void HardStop()
-        {
-            _shouldStop = true;
         }
 
         public void SoftStop()
         {
-            _taskQueue.CompleteAdding();
+            _buffer.CompleteAdding();
+            _tokenSource.Cancel();
+
             UpdateBehavior(() =>
             {
-                if (_taskQueue.IsCompleted)
+                if (_buffer.IsCompleted && !_taskScheduler.HasCommand())
                 {
                     HardStop();
                     return;
@@ -53,52 +68,66 @@ namespace task17
             });
         }
 
-        private void DefaultBehavior()
+        private void Run()
+        {
+            while (!_forceStop)
+            {
+                _currentStrategy();
+            }
+        }
+
+        private void ProcessCommand(ICommand cmd)
         {
             try
             {
-                ICommand cmd = _taskQueue.Take();
+                cmd.Execute();
+                if (cmd is ILongCommand longCmd && !longCmd.IsCompleted)
+                {
+                    _taskScheduler.Add(longCmd);
+                }
+            }
+            catch (Exception error)
+            {
+                ExceptionHandler.Handler(cmd, error);
+            }
+        }
+
+        private void DefaultBehavior()
+        {
+            bool processed = false;
+
+            if (_buffer.TryTake(out ICommand incomingCmd))
+            {
+                ProcessCommand(incomingCmd);
+                processed = true;
+            }
+
+            if (_taskScheduler.HasCommand())
+            {
+                ICommand scheduledCmd = _taskScheduler.Select();
+                if (scheduledCmd != null)
+                {
+                    ProcessCommand(scheduledCmd);
+                    processed = true;
+                }
+            }
+
+            if (!processed)
+            {
                 try
                 {
-                    cmd.Execute();
+                    ICommand nextCmd = _buffer.Take(_tokenSource.Token);
+                    ProcessCommand(nextCmd);
                 }
-                catch (Exception ex)
+                catch (OperationCanceledException)
                 {
-                    ExceptionHandler.Handler(cmd, ex);
+                    HardStop();
+                }
+                catch (InvalidOperationException)
+                {
+                    HardStop();
                 }
             }
-            catch (InvalidOperationException)
-            {
-                HardStop();
-            }
-
         }
-
-        public void UpdateBehavior(Action nextBehavior)
-        {
-            _currentAction = nextBehavior ?? throw new ArgumentNullException(nameof(nextBehavior));
-        }
-
-        
-
-        public void Join()
-        {
-            _workerThread.Join();
-        }
-
-        private void Run()
-        {
-            while (!_shouldStop)
-            {
-                _currentAction();
-            }
-        }
-
-        public void Start()
-        {
-            _workerThread.Start();
-        }
-
-        
     }
 }
