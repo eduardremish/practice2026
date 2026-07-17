@@ -35,14 +35,15 @@ namespace ServerThreadTests
             var server = new ServerThread();
             var counter = 0;
 
-            server.Add(new Command { OnExecute = () => counter++ });
-            server.Add(new Command { OnExecute = () => counter++ });
-            server.Add(new Command { OnExecute = () => counter++ });
+            server.Add(new Command { OnExecute = () => Interlocked.Increment(ref counter) });
+            server.Add(new Command { OnExecute = () => Interlocked.Increment(ref counter) });
+            server.Add(new Command { OnExecute = () => Interlocked.Increment(ref counter) });
 
             server.Start();
             server.SoftStop();
-            server.Join();
+            bool finished = server.Thread.Join(TimeSpan.FromSeconds(3));
 
+            Assert.True(finished, "Поток не завершился за 3 секунды");
             Assert.Equal(3, counter);
         }
 
