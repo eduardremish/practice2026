@@ -55,16 +55,29 @@ namespace task17
         public void SoftStop()
         {
             _buffer.CompleteAdding();
-            _tokenSource.Cancel();
 
             UpdateBehavior(() =>
             {
-                if (_buffer.IsCompleted && !_taskScheduler.HasCommand())
+                // 1. Сначала планировщик
+                if (_taskScheduler.HasCommand())
                 {
-                    HardStop();
+                    ICommand cmd = _taskScheduler.Select();
+                    if (cmd != null)
+                    {
+                        ProcessCommand(cmd);
+                        return;
+                    }
+                }
+                
+                // 2. Потом очередь
+                if (_buffer.TryTake(out ICommand queueCmd))
+                {
+                    ProcessCommand(queueCmd);
                     return;
                 }
-                DefaultBehavior();
+                
+                // 3. Всё пусто — останавливаемся
+                HardStop();
             });
         }
 
@@ -73,6 +86,12 @@ namespace task17
             while (!_forceStop)
             {
                 _currentStrategy();
+            }
+            
+            // Добиваем очередь
+            while (_buffer.TryTake(out ICommand remaining))
+            {
+                ProcessCommand(remaining);
             }
         }
 
@@ -88,45 +107,43 @@ namespace task17
             }
             catch (Exception error)
             {
-                ExceptionHandler.Handler(cmd, error);
+                ExceptionHandler.Handle(cmd, error);
             }
         }
 
         private void DefaultBehavior()
         {
-            bool processed = false;
-
-            if (_buffer.TryTake(out ICommand incomingCmd))
-            {
-                ProcessCommand(incomingCmd);
-                processed = true;
-            }
-
+            // 1. СНАЧАЛА планировщик — чтобы команды чередовались строго
             if (_taskScheduler.HasCommand())
             {
                 ICommand scheduledCmd = _taskScheduler.Select();
                 if (scheduledCmd != null)
                 {
                     ProcessCommand(scheduledCmd);
-                    processed = true;
+                    return;
                 }
             }
 
-            if (!processed)
+            // 2. Потом очередь
+            if (_buffer.TryTake(out ICommand incomingCmd))
             {
-                try
-                {
-                    ICommand nextCmd = _buffer.Take(_tokenSource.Token);
-                    ProcessCommand(nextCmd);
-                }
-                catch (OperationCanceledException)
-                {
-                    HardStop();
-                }
-                catch (InvalidOperationException)
-                {
-                    HardStop();
-                }
+                ProcessCommand(incomingCmd);
+                return;
+            }
+
+            // 3. Блокируемся на очереди
+            try
+            {
+                ICommand nextCmd = _buffer.Take(_tokenSource.Token);
+                ProcessCommand(nextCmd);
+            }
+            catch (OperationCanceledException)
+            {
+                // просто выходим
+            }
+            catch (InvalidOperationException)
+            {
+                // очередь закрыта
             }
         }
     }
