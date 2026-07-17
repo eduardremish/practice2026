@@ -44,8 +44,8 @@ namespace ServerThreadTests
             server.Join();
 
             Assert.Equal(3, counter);
-
         }
+
         [Fact]
         public void HardStop_ShouldProcessAllCommands()
         {
