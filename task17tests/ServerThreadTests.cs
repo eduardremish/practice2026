@@ -84,17 +84,19 @@ namespace task17tests
         public void SoftStop_ProcessesAllBeforeExit()
         {
             var counter = 0;
-            var cmd1 = new BasicCommand(() => counter++);
-            var cmd2 = new BasicCommand(() => counter++);
-            var cmd3 = new BasicCommand(() => counter++);
+            var cmd1 = new BasicCommand(() => Interlocked.Increment(ref counter));
+            var cmd2 = new BasicCommand(() => Interlocked.Increment(ref counter));
+            var cmd3 = new BasicCommand(() => Interlocked.Increment(ref counter));
 
             _executor.Start();
             _executor.Add(cmd1);
             _executor.Add(cmd2);
             _executor.Add(cmd3);
             _executor.SoftStop();
-            _executor.Join();
 
+            bool finished = _executor.Thread.Join(TimeSpan.FromSeconds(3));
+
+            Assert.True(finished, "Поток не завершился за 3 секунды");
             Assert.Equal(3, counter);
         }
 
