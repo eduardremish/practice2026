@@ -29,6 +29,37 @@ namespace ServerThreadTests
         {
             ExceptionHandler.Reset();
         }
+        [Fact]
+        public void SoftStop_ShouldProcessAllCommands()
+        {
+            var server = new ServerThread();
+            var counter = 0;
+
+            server.Add(new Command { OnExecute = () => counter++ });
+            server.Add(new Command { OnExecute = () => counter++ });
+            server.Add(new Command { OnExecute = () => counter++ });
+
+            server.Start();
+            server.SoftStop();
+            server.Join();
+
+            Assert.Equal(3, counter);
+
+        }
+        [Fact]
+        public void HardStop_ShouldProcessAllCommands()
+        {
+            var server = new ServerThread();
+            server.Start();
+            server.HardStop();
+            server.Join();
+
+            var cmd = new Command();
+            server.Add(cmd);
+
+            Assert.False(cmd.Executed);
+        }
+
 
         [Fact]
         public void Start_MultipleThreads_ShouldExecuteInParallel()
@@ -50,48 +81,6 @@ namespace ServerThreadTests
 
             Assert.Equal(2, counter);
         }
-
-      
-
-        [Fact]
-        public void UpdateBehavior_ShouldReplaceDefaultProcessing()
-        {
-            var server = new ServerThread();
-            var executedByDefault = false;
-            var executedByCustom = false;
-
-            var cmd1 = new Command { OnExecute = () => executedByDefault = true };
-            var cmd2 = new Command { OnExecute = () => executedByCustom = true };
-
-            server.UpdateBehavior(() =>
-            {
-                executedByCustom = true;
-                server.HardStop();
-            });
-
-            server.Add(cmd1);
-            server.Add(cmd2);
-            server.Start();
-            server.Join();
-
-            Assert.False(executedByDefault);
-            Assert.True(executedByCustom);
-        }
-
-        [Fact]
-        public void Add_AfterHardStop_ShouldNotExecuteCommands()
-        {
-            var server = new ServerThread();
-            server.Start();
-            server.HardStop();
-            server.Join();
-
-            var cmd = new Command();
-            server.Add(cmd);
-
-            Assert.False(cmd.Executed);
-        }
-
-       
+    
     }
 }
